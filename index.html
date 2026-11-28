@@ -75,8 +75,23 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sa)}
 .help code{background:var(--panel2);padding:1px 6px;border-radius:6px}
 .legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--mute);font-size:14px;margin:6px 2px 0}
 .legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.card{background:var(--panel);border:1px solid var(--you);border-radius:16px;padding:14px 16px;margin:0 0 10px;display:grid;gap:12px}
+.between{justify-content:space-between}
+.recDot{width:14px;height:14px;border-radius:50%;background:var(--mute);flex:none}
+.recDot.live{background:var(--you);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.grow{flex:1;min-width:80px}
+#recNote{color:var(--you);font-size:24px;font-weight:800;min-width:90px;line-height:1.1}
+#recNote small{display:block;font-size:13px;font-weight:400;color:var(--mute)}
+input[type=text]{font:16px Mukta,system-ui,sans-serif;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:10px;min-height:44px;padding:0 12px;width:100%}
+.hint{margin:0;color:var(--mute);font-size:14px}
+.lib{list-style:none;margin:0;padding:0 0 14px;display:grid;gap:8px}
+.lib li{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;background:var(--panel2);border-radius:12px;padding:10px 12px}
+.lib small{display:block;color:var(--mute);font-size:13px}
+.lib .btn{background:var(--panel);text-decoration:none}
+.muted{color:var(--mute)}
 @media(max-width:760px){.read{grid-template-columns:repeat(2,minmax(0,1fr))}.cell.wide{grid-column:span 2;order:3}.big{font-size:26px}}
-@media(prefers-reduced-motion:reduce){#mNeedle,.prog i{transition:none}}
+@media(prefers-reduced-motion:reduce){#mNeedle,.prog i{transition:none}.recDot.live{animation:none}}
 </style>
 </head>
 <body>
@@ -84,13 +99,24 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sa)}
   <div class="brand"><h1>Sur <span>Saathi</span></h1><p>See the song's swaras. Sing right on top of them.</p></div>
   <div class="acts">
     <label class="btn" for="file" tabindex="0" id="fileLbl">Load song</label>
-    <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" hidden>
+    <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.webm,.flac" hidden>
     <button id="demo" class="btn">Try demo</button>
+    <button id="recBtn" class="btn">Record teacher</button>
     <button id="micBtn" class="btn mic"><span class="dot"></span>Start mic</button>
   </div>
 </header>
 <div id="status" class="status" role="status">Load a song, or start the mic to use this as a live swara meter.</div>
 <div class="prog" id="prog" hidden><i></i></div>
+
+<section id="recPanel" class="card" hidden aria-label="Record your teacher">
+  <div class="row between">
+    <div class="row"><span id="recDot" class="recDot"></span><b id="recState">Ready to record</b><span id="recTime" class="time">0:00</span></div>
+    <div class="row"><button id="recGo" class="btn mic">Start recording</button><button id="recCancel" class="btn sm">Close</button></div>
+  </div>
+  <div class="row"><div id="recNote">–</div><div class="lvl grow"><i id="recLvl"></i></div></div>
+  <label class="f"><span>Name this recording</span><input id="recName" type="text" maxlength="80" placeholder="e.g. Yaman alaap — Guruji, lesson 3"></label>
+  <p class="hint">Place the phone 1–2 m from your teacher in a quiet room, and ask them to begin with a long Sa so the app finds the tonic. If the Tanpura is on, keep it soft. The screen stays awake while recording. When you tap Stop, the recording is saved on this phone and loaded for practice.</p>
+</section>
 
 <section class="stage" id="stage"><canvas id="view" aria-label="Pitch view: song melody and your voice on swara lines"></canvas></section>
 <div class="legend"><span><i style="background:var(--song)"></i>Song melody (band = your tolerance)</span><span><i style="background:var(--you)"></i>Your voice</span><span><i style="background:var(--sa)"></i>Sa</span></div>
@@ -114,8 +140,14 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sa)}
   <button id="setB" class="btn sm" disabled>Loop B</button>
   <button id="clrL" class="btn sm" disabled>Clear loop</button>
   <button id="tan" class="btn sm">Tanpura</button>
+  <button id="saveLib" class="btn sm" hidden>Save to library</button>
 </section>
 <canvas id="ov" aria-label="Whole-song overview. Tap to jump."></canvas>
+
+<details class="panel" id="libPanel">
+  <summary>My recordings &amp; saved songs<span id="libCount"></span></summary>
+  <ul id="lib" class="lib"></ul>
+</details>
 
 <details class="panel" open>
   <summary>Settings</summary>
@@ -132,7 +164,8 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sa)}
       <small style="color:var(--mute);font-size:13px">If your line trails the song, raise this. Bluetooth headphones usually need 200–300 ms.</small></div>
     <div class="f"><span>Mic gate (ignore sounds quieter than the mark)</span><div class="lvl"><i id="lvlBar"></i><b id="lvlMark"></b></div><input id="sens" type="range" min="0.002" max="0.06" step="0.001">
       <label class="chk"><input id="echo" type="checkbox"><span>Echo cancellation<small>Only if you're using speakers instead of headphones. Restart the mic after changing.</small></span></label></div>
-    <div class="f"><span>Tanpura first string</span><select id="tanFirst"><option value="-5">Pa (most ragas)</option><option value="-7">Ma (ragas without Pa)</option><option value="-1">Ni (e.g. Marwa)</option></select></div>
+    <div class="f"><span>Tanpura first string</span><select id="tanFirst"><option value="-5">Pa (most ragas)</option><option value="-7">Ma (ragas without Pa)</option><option value="-1">Ni (e.g. Marwa)</option></select>
+      <span>Tanpura volume</span><input id="tanVol" type="range" min="0.1" max="1.5" step="0.05"></div>
   </div>
 </details>
 
@@ -140,6 +173,7 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--sa)}
   <summary>How to get clean results</summary>
   <ol class="help">
     <li><b>Use a vocal-only track if you can.</b> Pitch tracking follows the loudest clear pitch. On a full mix, tabla, harmonium or strings can pull it off the singer. Run the song through a vocal separator first (Demucs, UVR, or any "vocal remover" site) and load the vocal stem. Then play the stem or the full song, whichever you prefer to hear.</li>
+    <li><b>Lessons with your teacher:</b> tap <b>Record teacher</b> and let them sing the phrase or bandish. The recording becomes your practice track, with swaras, overlay, loops and slow-down. Recordings are kept on this phone under <i>My recordings</i>; use Download to back one up. A voice note your teacher sends you (WhatsApp .opus, .m4a) opens with Load song.</li>
     <li><b>Wear headphones.</b> If the song comes out of speakers, the mic hears it and your line gets mixed up with the singer's.</li>
     <li><b>Check Sa.</b> It's detected from the most common note plus its Pa. If the gridlines look shifted, choose Sa by ear with the Tanpura button on.</li>
     <li><b>Slow down difficult taans</b> to 0.6–0.75×. The pitch stays the same, and the notes are spread out so you can follow the meend and gamak.</li>
@@ -161,14 +195,24 @@ const fmt = s => { s = Math.max(0, s||0); return Math.floor(s/60) + ':' + String
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 
 /* ---------- settings ---------- */
-const DEF = {labels:'swara', view:'overlay', octFree:true, lat:100, tol:40, win:6, sens:0.01, echo:false, saPc:1, saFine:0, tanFirst:-5};
+const DEF = {labels:'swara', view:'overlay', octFree:true, lat:100, tol:40, win:6, sens:0.01, echo:false, saPc:1, saFine:0, tanFirst:-5, tanVol:0.8};
 const P = {...DEF};
 try { Object.assign(P, JSON.parse(localStorage.getItem('surSaathi') || '{}')); } catch(e) {}
 const save = () => { try { localStorage.setItem('surSaathi', JSON.stringify(P)); } catch(e) {} };
 
 /* ---------- state ---------- */
-const song = {loaded:false, name:'', dur:0, hop:0.016, t0:0, m:new Float32Array(0), lo:48, hi:72, median:57, usage:new Array(12).fill(1), autoSa:null, voiced:0};
+const song = {recId:null, blob:null, demo:false, loaded:false, name:'', dur:0, hop:0.016, t0:0, m:new Float32Array(0), lo:48, hi:72, median:57, usage:new Array(12).fill(1), autoSa:null, voiced:0};
 let saMidi = 50;
+const DB = (() => {
+  let op = null;
+  const open = () => op || (op = new Promise((res, rej) => {
+    const r = indexedDB.open('surSaathi', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('recs', {keyPath:'id'});
+    r.onsuccess = () => res(r.result); r.onerror = () => { op = null; rej(r.error); };
+  }));
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('recs', mode), q = fn(t.objectStore('recs')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); }); };
+  return {put: r => tx('readwrite', s => s.put(r)), del: id => tx('readwrite', s => s.delete(id)), get: id => tx('readonly', s => s.get(id)), all: () => tx('readonly', s => s.getAll())};
+})();
 const audio = new Audio();
 audio.preload = 'auto';
 audio.preservesPitch = true; audio.mozPreservesPitch = true; audio.webkitPreservesPitch = true;
@@ -304,6 +348,12 @@ function setSa() {
   $('#saOut').textContent = WN[P.saPc] + (f ? (f > 0 ? ' +' : ' −') + Math.abs(f) + '¢' : '') + ' · ' + m2hz(saMidi).toFixed(1) + ' Hz';
   $('#saPc').value = P.saPc; $('#saFine').value = P.saFine;
   save(); renderOverview();
+  if (song.recId) saveSa();
+}
+let saT = null;
+function saveSa() {
+  clearTimeout(saT); const id = song.recId, sa = {pc:P.saPc, fine:P.saFine};
+  saT = setTimeout(async () => { try { const it = await DB.get(id); if (it) { it.sa = sa; await DB.put(it); refreshLib(); } } catch(e) {} }, 700);
 }
 function applyAutoSa() {
   if (song.autoSa == null) return;
@@ -312,28 +362,38 @@ function applyAutoSa() {
 }
 
 /* ---------- loading ---------- */
-async function loadSong(blob, name) {
+async function loadSong(blob, name, recId = null, savedSa = null) {
   try {
     audio.pause(); setPlayUI();
-    if (url) URL.revokeObjectURL(url);
-    url = URL.createObjectURL(blob); audio.src = url; audio.load();
     status('Decoding <b>' + esc(name) + '</b>…'); prog(0);
     const ab = await blob.arrayBuffer();
     const buf = await decode(ab);
+    let play = blob;
+    if (!/mpeg|mp3|wav|mp4|m4a|aac/i.test((blob.type || '') + ' ' + (blob.name || ''))) {
+      // phone recordings (webm/ogg) seek badly in <audio>: play a WAV copy instead
+      const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null, mono = new Float32Array(L.length);
+      for (let i = 0; i < L.length; i++) mono[i] = R ? (L[i] + R[i])*0.5 : L[i];
+      play = encodeWav(mono, buf.sampleRate, 1);
+    }
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(play); audio.src = url; audio.load();
     status('Finding the melody in <b>' + esc(name) + '</b>…');
     const {x, sr} = await toMono(buf);
     const r = await analyse(x, sr, prog);
-    Object.assign(song, {m: r.m, hop: r.hop, t0: r.t0, dur: buf.duration, loaded: true, name});
+    Object.assign(song, {m: r.m, hop: r.hop, t0: r.t0, dur: buf.duration, loaded: true, name, recId: null, blob, demo: /^Demo/.test(name)});
     songStats(); loopA = loopB = null; mic.hist = []; newTake(true);
-    if (song.autoSa != null) applyAutoSa(); else setSa();
+    if (savedSa) { P.saPc = savedSa.pc; P.saFine = savedSa.fine; setSa(); } else if (song.autoSa != null) applyAutoSa(); else setSa();
+    song.recId = recId;
+    if (recId && !savedSa) saveSa();
     prog(null);
     ['#play','#back','#fwd','#setA','#setB','#clrL','#saAuto'].forEach(s => $(s).disabled = false);
+    $('#saveLib').hidden = !!recId || song.demo;
     const pct = Math.round(song.voiced*100);
-    status('<b>' + esc(name) + '</b> · ' + fmt(song.dur) + ' · clear melody in ' + pct + '% of the song' +
-      (pct < 15 ? '. That\'s low. A vocal-only track will track much better.' : '') + ' · Sa set to ' + WN[P.saPc] + '.');
+    status('<b>' + esc(name) + '</b> · ' + fmt(song.dur) + ' · clear melody in ' + pct + '% of it' +
+      (pct < 15 ? '. That\'s low. A clearer or vocal-only recording will track better.' : '') + ' · Sa ' + (savedSa ? 'restored' : 'set') + ' to ' + WN[P.saPc] + '.');
     renderOverview();
   } catch(e) {
-    prog(null); status('Couldn\'t read that file: ' + esc(e.message || e) + '. Try MP3, WAV or M4A.');
+    prog(null); status('Couldn\'t read that audio: ' + esc(e.message || e) + '. Try MP3, WAV or M4A.');
   }
 }
 $('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) { getAC(); loadSong(f, f.name.replace(/\.[^.]+$/, '')); } e.target.value = ''; });
@@ -366,10 +426,13 @@ function makeDemo() {
     out[k] += v*0.05*Math.exp(-tt*2.5);
   }
   let pk = 0; for (const v of out) pk = Math.max(pk, Math.abs(v));
-  const dv = new DataView(new ArrayBuffer(44 + N*2)), ws = (o, s) => { for (let j = 0; j < s.length; j++) dv.setUint8(o + j, s.charCodeAt(j)); };
+  return encodeWav(out, sr, 0.8/pk);
+}
+function encodeWav(x, sr, gain) {
+  const N = x.length, dv = new DataView(new ArrayBuffer(44 + N*2)), ws = (o, t) => { for (let j = 0; j < t.length; j++) dv.setUint8(o + j, t.charCodeAt(j)); };
   ws(0,'RIFF'); dv.setUint32(4, 36 + N*2, true); ws(8,'WAVEfmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
   dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,N*2,true);
-  for (let k = 0; k < N; k++) dv.setInt16(44 + k*2, clamp(out[k]/pk*0.8, -1, 1)*32767, true);
+  for (let k = 0; k < N; k++) dv.setInt16(44 + k*2, clamp(x[k]*gain, -1, 1)*32767, true);
   return new Blob([dv.buffer], {type:'audio/wav'});
 }
 $('#demo').addEventListener('click', () => { getAC(); loadSong(makeDemo(), 'Demo — Yaman phrase (synthetic voice)'); });
@@ -397,7 +460,7 @@ function stopMic() {
   $('#micBtn').classList.remove('on'); $('#micBtn').lastChild.textContent = 'Start mic';
 }
 $('#micBtn').addEventListener('click', () => mic.on ? stopMic() : startMic());
-function micDetect() {
+function micDetect(mic) {
   mic.an.getFloatTimeDomainData(mic.buf);
   const sr0 = ac.sampleRate; let x = mic.buf, sr = sr0;
   if (sr0 > 32000) { for (let i = 0; i < 1024; i++) mic.ds[i] = (mic.buf[2*i] + mic.buf[2*i+1])*0.5; x = mic.ds; sr = sr0/2; }
@@ -422,20 +485,114 @@ function newTake(clearLast) {
   mic.take = {hit:0, tot:0};
 }
 
+/* ---------- teacher recording ---------- */
+const rec = {on:false, stream:null, mr:null, chunks:[], t0:0, an:null, buf:new Float32Array(2048), ds:new Float32Array(1024), d:new Float32Array(1400), rec:[], miss:0, level:0, lock:null, cancel:false};
+const recMime = () => { if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return ''; for (const m of ['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus']) if (MediaRecorder.isTypeSupported(m)) return m; return ''; };
+function recUI() {
+  $('#recDot').classList.toggle('live', rec.on);
+  $('#recGo').classList.toggle('on', rec.on);
+  $('#recGo').textContent = rec.on ? 'Stop & practise' : 'Start recording';
+  $('#recState').textContent = rec.on ? 'Recording' : 'Ready to record';
+  $('#recCancel').textContent = rec.on ? 'Discard' : 'Close';
+  if (!rec.on) { $('#recNote').textContent = '–'; $('#recLvl').style.width = '0'; }
+}
+$('#recBtn').addEventListener('click', () => { const p = $('#recPanel'); p.hidden = false; recUI(); p.scrollIntoView({behavior:'smooth', block:'nearest'}); });
+$('#recCancel').addEventListener('click', () => { if (rec.on) { rec.cancel = true; stopRec(); } $('#recPanel').hidden = true; });
+$('#recGo').addEventListener('click', () => rec.on ? stopRec() : startRec());
+async function startRec() {
+  if (!window.MediaRecorder || !navigator.mediaDevices) { status('This browser can\'t record here. Use Chrome over https://.'); return; }
+  const a = getAC();
+  try { rec.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:true}}); }
+  catch(e) { status('Microphone not available: ' + esc(e.message || e.name) + '. Allow mic access and use https://.'); return; }
+  audio.pause();
+  const mime = recMime();
+  try { rec.mr = new MediaRecorder(rec.stream, mime ? {mimeType: mime} : undefined); } catch(e) { rec.mr = new MediaRecorder(rec.stream); }
+  rec.chunks = []; rec.cancel = false;
+  rec.mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); };
+  rec.mr.onstop = finishRec;
+  rec.mr.start(1000);
+  const src = a.createMediaStreamSource(rec.stream), mute = a.createGain(); mute.gain.value = 0;
+  rec.an = a.createAnalyser(); rec.an.fftSize = 2048; src.connect(rec.an); rec.an.connect(mute); mute.connect(a.destination);
+  rec.on = true; rec.t0 = performance.now(); rec.rec = []; recUI();
+  try { rec.lock = await navigator.wakeLock.request('screen'); } catch(e) { rec.lock = null; }
+}
+function stopRec() {
+  rec.on = false; rec.an = null;
+  if (rec.mr && rec.mr.state !== 'inactive') rec.mr.stop();
+  if (rec.stream) rec.stream.getTracks().forEach(t => t.stop());
+  if (rec.lock) { rec.lock.release().catch(() => {}); rec.lock = null; }
+  recUI();
+}
+async function finishRec() {
+  const chunks = rec.chunks; rec.chunks = [];
+  if (rec.cancel) { status('Recording discarded.'); return; }
+  const dur = (performance.now() - rec.t0)/1000, blob = new Blob(chunks, {type: (rec.mr && rec.mr.mimeType) || 'audio/webm'});
+  if (dur < 2 || !blob.size) { status('That recording was too short. Try again.'); return; }
+  const name = $('#recName').value.trim() || 'Teacher — ' + new Date().toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+  const item = {id: 'r' + Date.now().toString(36), name, blob, created: Date.now(), dur, kind: 'rec'};
+  let saved = true; try { await DB.put(item); } catch(e) { saved = false; }
+  $('#recPanel').hidden = true; $('#recName').value = ''; refreshLib();
+  getAC(); await loadSong(blob, name, saved ? item.id : null);
+  if (!saved) status($('#status').innerHTML + ' Saving isn\'t available in this browser, so this recording disappears when you close the page.');
+}
+
+/* ---------- library ---------- */
+let libUrls = [];
+const extOf = t => /mp4|m4a|aac/.test(t) ? 'm4a' : /ogg/.test(t) ? 'ogg' : /mpeg|mp3/.test(t) ? 'mp3' : /wav/.test(t) ? 'wav' : 'webm';
+async function refreshLib() {
+  let items;
+  try { items = await DB.all(); } catch(e) { $('#lib').innerHTML = '<li class="muted">Saving isn\'t available in this browser (private/incognito tab?).</li>'; return; }
+  items.sort((a, b) => b.created - a.created);
+  libUrls.forEach(u => URL.revokeObjectURL(u)); libUrls = [];
+  $('#libCount').textContent = items.length ? ' (' + items.length + ')' : '';
+  $('#lib').innerHTML = items.length ? items.map(it => {
+    const u = URL.createObjectURL(it.blob); libUrls.push(u);
+    const fn = (String(it.name).replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'recording') + '.' + extOf(it.blob.type || '');
+    return '<li><div><b>' + esc(it.name) + '</b><small>' + (it.kind === 'rec' ? 'Recording' : 'Song') + ' · ' + fmt(it.dur) + ' · ' + esc(new Date(it.created).toLocaleDateString()) +
+      (it.sa ? ' · Sa ' + WN[it.sa.pc] : '') + '</small></div><div class="row"><button class="btn sm" data-act="load" data-id="' + esc(it.id) + '">Practise</button>' +
+      '<a class="btn sm" href="' + u + '" download="' + esc(fn) + '">Download</a><button class="btn sm" data-act="del" data-id="' + esc(it.id) + '">Delete</button></div></li>';
+  }).join('') : '<li class="muted">Nothing saved yet. Tap <b>Record teacher</b> to record a lesson, or load a song and tap Save to library.</li>';
+}
+$('#lib').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const id = b.dataset.id;
+  if (b.dataset.act === 'load') {
+    const it = await DB.get(id).catch(() => null);
+    if (it) { getAC(); window.scrollTo({top: 0, behavior: 'smooth'}); loadSong(it.blob, it.name, it.id, it.sa || null); }
+  } else if (b.dataset.sure) {
+    await DB.del(id).catch(() => {}); if (song.recId === id) song.recId = null; refreshLib();
+  } else {
+    b.dataset.sure = '1'; b.textContent = 'Tap again to delete';
+    setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 3000);
+  }
+});
+$('#saveLib').addEventListener('click', async () => {
+  if (!song.loaded || !song.blob || song.recId) return;
+  const it = {id: 's' + Date.now().toString(36), name: song.name, blob: song.blob, created: Date.now(), dur: song.dur, kind: 'song', sa: {pc: P.saPc, fine: P.saFine}};
+  try { await DB.put(it); song.recId = it.id; $('#saveLib').hidden = true; refreshLib(); } catch(e) { status('Couldn\'t save in this browser.'); }
+});
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
+
 /* ---------- tanpura ---------- */
 let tanBus = null, tanTimer = null, tanStep = 0;
 function pluck(m, when) {
   const a = ac, f = a.createBiquadFilter(), g = a.createGain();
-  f.type = 'lowpass'; f.frequency.setValueAtTime(2600, when); f.frequency.exponentialRampToValueAtTime(500, when + 2.8);
-  g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.06, when + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, when + 3.4);
+  f.type = 'lowpass'; f.Q.value = 4; f.frequency.setValueAtTime(7000, when); f.frequency.exponentialRampToValueAtTime(1600, when + 3);
+  g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.25, when + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, when + 3.6);
   f.connect(g); g.connect(tanBus);
-  for (const det of [1, 1.0025]) { const o = a.createOscillator(); o.type = 'sawtooth'; o.frequency.value = m2hz(m)*det; o.connect(f); o.start(when); o.stop(when + 3.5); }
+  for (const det of [1, 1.003, 2.002]) { const o = a.createOscillator(); o.type = 'sawtooth'; o.frequency.value = m2hz(m)*det; o.connect(f); o.start(when); o.stop(when + 3.7); }
 }
 $('#tan').addEventListener('click', () => {
   const a = getAC();
   if (tanTimer) { clearInterval(tanTimer); tanTimer = null; $('#tan').classList.remove('on'); return; }
-  if (!tanBus) { tanBus = a.createGain(); tanBus.gain.value = 0.9; tanBus.connect(a.destination); }
-  const tick = () => { const seq = [P.tanFirst, 0, 0, -12]; pluck(saMidi + seq[tanStep++ % 4], a.currentTime + 0.03); };
+  if (!tanBus) {
+    tanBus = a.createGain(); tanBus.gain.value = P.tanVol;
+    const comp = a.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 6;
+    tanBus.connect(comp); comp.connect(a.destination);
+  }
+  if (a.state !== 'running') status('Tap Tanpura again if you hear nothing. Your browser is still waking up its audio.');
+  // pitched an octave up from a real tanpura so phone speakers can play it
+  const tick = () => { const seq = [P.tanFirst, 0, 0, -12]; pluck(saMidi + 12 + seq[tanStep++ % 4], a.currentTime + 0.03); };
   tick(); tanTimer = setInterval(tick, 950); $('#tan').classList.add('on');
 });
 
@@ -481,7 +638,8 @@ const bindRange = (id, key, out, f = v => v) => {
   const upd = () => { P[key] = +el.value; if (out) $('#' + out).textContent = f(P[key]); save(); };
   el.addEventListener('input', upd); upd();
 };
-bindRange('tol', 'tol', 'tolOut'); bindRange('win', 'win', 'winOut'); bindRange('lat', 'lat', 'latOut'); bindRange('sens', 'sens');
+bindRange('tol', 'tol', 'tolOut'); bindRange('win', 'win', 'winOut'); bindRange('lat', 'lat', 'latOut'); bindRange('sens', 'sens'); bindRange('tanVol', 'tanVol');
+$('#tanVol').addEventListener('input', () => { if (tanBus) tanBus.gain.value = P.tanVol; });
 $('#saPc').addEventListener('change', e => { P.saPc = +e.target.value; setSa(); });
 $('#saFine').addEventListener('input', e => { P.saFine = +e.target.value; setSa(); });
 $('#saAuto').addEventListener('click', applyAutoSa);
@@ -555,7 +713,7 @@ function draw() {
   // --- mic sample & scoring
   let mNow = NaN;
   if (mic.on && mic.an) {
-    mNow = micDetect(); mic.cur = mNow;
+    mNow = micDetect(mic); mic.cur = mNow;
     const t = now - (song.loaded ? P.lat/1000 : 0);
     const recording = !song.loaded || !audio.paused;
     const sv = song.loaded ? songAt(t) : NaN;
@@ -678,6 +836,11 @@ function nameHTML(m) {
   return main + '<small>' + sub + ' · ' + (c >= 0 ? '+' : '−') + Math.abs(c) + '¢</small>';
 }
 function readouts(now, mNow) {
+  if (rec.on && rec.an) {
+    $('#recNote').innerHTML = nameHTML(micDetect(rec));
+    $('#recLvl').style.width = clamp(rec.level/0.08*100, 0, 100) + '%';
+    $('#recTime').textContent = fmt((performance.now() - rec.t0)/1000);
+  }
   const sv = song.loaded ? songAt(now) : NaN;
   $('#rTgt').innerHTML = song.loaded ? nameHTML(sv) : '–';
   $('#rYou').innerHTML = mic.on ? nameHTML(mNow) : '<small>mic off</small>';
@@ -713,6 +876,7 @@ cv.addEventListener('pointermove', e => {
 cv.addEventListener('pointerup', () => { if (drag && !drag.moved) togglePlay(); drag = null; });
 
 setSa();
+refreshLib();
 requestAnimationFrame(draw);
 }
 </script>
